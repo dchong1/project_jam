@@ -1,0 +1,51 @@
+---
+description: Project directory structure and important files/folders
+globs:
+alwaysApply: false
+---
+# Project Directory Structure
+
+Reference for navigating the project and understanding where files belong.
+
+## Current Structure
+
+```
+project_jam/
+├── .cursor/
+│   └── rules/
+│       ├── cursor-rules.mdc      # How to add/edit Cursor rules
+│       ├── directory-structure.mdc  # This file - project layout reference
+│       └── self-improve.mdc      # Rule improvement triggers and process
+├── src/
+│   ├── config.py                # API key, prompts, Grok settings
+│   ├── llm_analysts.py          # brainstorm_ideas, critique_ideas
+│   └── summary_generator.py     # format_exec_summary, parse_trackable_elements, calculate_conviction
+├── main.py                      # Console entry point
+├── requirements.txt
+├── .env.example
+└── README.md
+```
+
+## Important Locations
+
+| Path | Purpose |
+|------|---------|
+| `.cursor/rules/` | Cursor rule files (`.mdc`). All AI guidance lives here. |
+| `cursor-rules.mdc` | Meta-rule: how to create and organize rules. |
+| `self-improve.mdc` | When and how to update rules based on code patterns. |
+| `directory-structure.mdc` | This file. Project layout and important paths. |
+
+## Cursor Rules
+
+- **Location**: `PROJECT_ROOT/.cursor/rules/`
+- **Extension**: `.mdc`
+- **Naming**: kebab-case (e.g., `directory-structure.mdc`)
+- See [cursor-rules.mdc](mdc:.cursor/rules/cursor-rules.mdc) for full rule creation guidelines.
+
+## Adding New Directories
+
+When adding source code or other project content, update this rule to reflect:
+
+- New top-level folders (e.g., `src/`, `docs/`, `tests/`)
+- Important config files (e.g., `package.json`, `tsconfig.json`)
+- Build outputs or generated folders to avoid editing
