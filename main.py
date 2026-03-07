@@ -1,10 +1,28 @@
 """Console entry point for the investment idea generation app."""
 
+import argparse
 import sys
 
 
 def main() -> None:
     """Run the investment idea generation workflow."""
+    parser = argparse.ArgumentParser(description="Investment Idea Generator")
+    parser.add_argument(
+        "--archetype",
+        "-a",
+        type=str,
+        default=None,
+        help="Analyst style: Logical/Spock, Visionary, Conservative, Sherlock, Root-Seeker",
+    )
+    parser.add_argument(
+        "--theme",
+        "-t",
+        type=str,
+        default=None,
+        help="Investment theme (default: AI in healthcare)",
+    )
+    args = parser.parse_args()
+
     try:
         from src.llm_analysts import brainstorm_ideas, critique_ideas
         from src.summary_generator import (
@@ -18,13 +36,25 @@ def main() -> None:
         sys.exit(1)
 
     try:
-        theme_input = input("Enter investment theme (default: AI in healthcare): ").strip()
-        theme = theme_input if theme_input else "AI in healthcare"
+        theme = args.theme
+        if theme is None:
+            theme_input = input(
+                "Enter investment theme (default: AI in healthcare): "
+            ).strip()
+            theme = theme_input if theme_input else "AI in healthcare"
+
+        archetype = args.archetype
+        if archetype is None:
+            archetype_input = input(
+                "Analyst style (Logical/Spock, Visionary, Conservative, Sherlock, "
+                "Root-Seeker, or Enter for default): "
+            ).strip()
+            archetype = archetype_input if archetype_input else None
 
         print("\nGenerating ideas...")
-        brainstorm = brainstorm_ideas(theme)
+        brainstorm = brainstorm_ideas(theme, archetype=archetype)
         print("Critiquing ideas...")
-        critic = critique_ideas(brainstorm)
+        critic = critique_ideas(brainstorm, archetype=archetype)
 
         summary = format_exec_summary(brainstorm, critic)
         print("\n--- Executive Summary ---\n")

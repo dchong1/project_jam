@@ -43,17 +43,20 @@ flowchart TB
 
    Edit `.env` and set `GROK_API_KEY` to your xAI API key from [xAI Console](https://console.x.ai/).
 
-2. Install dependencies:
+2. Create a virtual environment and install dependencies:
 
    ```bash
+   python3 -m venv .venv
+   source .venv/bin/activate   # On Windows: .venv\Scripts\activate
    pip install -r requirements.txt
    ```
 
 ## Usage
 
-Run the console app:
+Activate the virtual environment (if not already active), then run:
 
 ```bash
+source .venv/bin/activate
 python main.py
 ```
 

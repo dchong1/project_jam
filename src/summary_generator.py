@@ -144,11 +144,11 @@ def _extract_critic_fields(block: str) -> dict[str, str]:
 
 
 def format_exec_summary(brainstorm: str, critic: str) -> str:
-    """Produce line-by-line Markdown summary aligning brainstorm and critic by idea."""
+    """Produce Markdown table summary with Pros and Cons paired for easy evaluation."""
     brainstorm_blocks = _parse_idea_blocks(brainstorm)
     critic_blocks = _parse_idea_blocks(critic)
 
-    lines: list[str] = []
+    rows: list[str] = []
     for i, b_block in enumerate(brainstorm_blocks):
         n = i + 1
         b_fields = _extract_brainstorm_fields(b_block.get("raw", ""))
@@ -158,55 +158,79 @@ def format_exec_summary(brainstorm: str, critic: str) -> str:
             else {}
         )
 
-        pro_line = (
-            f"Pro Idea {n}: {b_fields.get('idea', '')} | "
-            f"Action: {b_fields.get('action', '')} | "
-            f"Catalyst: {b_fields.get('catalyst', '')} | "
-            f"Args: {b_fields.get('args', '')}"
-        )
-        lines.append(pro_line)
+        # Pros cell: Pro Idea N: for parser compatibility, then structured fields
+        # Use first line of idea in case extraction captured multiple lines
+        idea_val = (b_fields.get("idea") or "").split("\n")[0].strip()
+        pro_parts: list[str] = []
+        if idea_val:
+            pro_parts.append(f"**Idea:** {idea_val}")
+        if b_fields.get("action"):
+            pro_parts.append(f"**Action:** {b_fields['action']}")
+        if b_fields.get("catalyst"):
+            pro_parts.append(f"**Catalyst:** {b_fields['catalyst']}")
+        if b_fields.get("args"):
+            pro_parts.append(f"**Args:** {b_fields['args']}")
+        pro_cell = f"Pro Idea {n}:\n\n" + "\n\n".join(pro_parts) if pro_parts else f"Pro Idea {n}:"
 
-        con_line = (
-            f"Con: {c_fields.get('counterarguments', '')} | "
-            f"Suggestions: {c_fields.get('suggestions', '')}"
-        )
+        # Cons cell: structured fields
+        con_parts: list[str] = []
+        if c_fields.get("counterarguments"):
+            con_parts.append(f"**Counterarguments:** {c_fields['counterarguments']}")
+        if c_fields.get("suggestions"):
+            con_parts.append(f"**Suggestions:** {c_fields['suggestions']}")
         if c_fields.get("revised"):
-            con_line += f" | Revised: {c_fields['revised']}"
-        lines.append(con_line)
-        lines.append("")
+            con_parts.append(f"**Revised:** {c_fields['revised']}")
+        con_cell = "\n\n".join(con_parts) if con_parts else "—"
 
-    return "\n".join(lines).strip()
+        # Escape pipe chars in cells for Markdown table
+        def _escape_pipe(s: str) -> str:
+            return s.replace("|", "\\|").replace("\n", "<br>")
+
+        rows.append(f"| {n} | {_escape_pipe(pro_cell)} | {_escape_pipe(con_cell)} |")
+
+    header = "| Idea | Pros | Cons |\n|:----:|------|------|"
+    return "\n".join([header] + rows)
+
+
+def _normalize_table_cell(text: str) -> str:
+    """Normalize table cell content: <br> to newline, unescape pipes."""
+    return text.replace("<br>", "\n").replace("\\|", "|")
 
 
 def parse_trackable_elements(summary: str) -> list[dict[str, Any]]:
     """Extract catalysts, timelines, metrics as list of dicts."""
     elements: list[dict[str, Any]] = []
     idea_id = 0
+    normalized = _normalize_table_cell(summary)
 
     # Split by "Pro Idea N:"
     pro_pattern = r"Pro Idea (\d+):"
-    for m in re.finditer(pro_pattern, summary, re.IGNORECASE):
+    for m in re.finditer(pro_pattern, normalized, re.IGNORECASE):
         idea_id = int(m.group(1))
         start = m.end()
-        next_m = re.search(pro_pattern, summary[start:], re.IGNORECASE)
-        end = start + next_m.start() if next_m else len(summary)
-        block = summary[start:end]
+        next_m = re.search(pro_pattern, normalized[start:], re.IGNORECASE)
+        end = start + next_m.start() if next_m else len(normalized)
+        block = normalized[start:end]
 
-        # Extract Catalyst
+        # Extract Catalyst (standalone "**Catalyst:**" or "Catalyst:", not "Underwritten Catalyst")
         catalyst_m = re.search(
-            r"Catalyst:\s*([^|]+?)(?=\s*\|\s*Args:|\s*Con:|$)",
+            r"(?<!Underwritten )(?:\*\*)?Catalyst(?:\*\*)?\s*:\s*([^|]+?)(?=\n\s*(?:\*\*)?Args\s*:|\s*\|\s*Args:|\s*Con:|\s*\|\s*|$)",
             block,
             re.DOTALL | re.IGNORECASE,
         )
-        catalyst = catalyst_m.group(1).strip() if catalyst_m else ""
+        catalyst = ""
+        if catalyst_m:
+            catalyst = re.sub(r"^\s*\*+\s*|\s*\*+\s*$", "", catalyst_m.group(1).strip())
 
-        # Extract Action (may contain ticker, duration)
+        # Extract Action (stop at Catalyst, Args, table separator, or Con)
         action_m = re.search(
-            r"Action:\s*([^|]+?)(?=\s*\|\s*Catalyst:|\s*Con:|$)",
+            r"(?:\*\*)?Action(?:\*\*)?\s*:\s*([^|]+?)(?=\n\s*(?:\*\*)?(?:Catalyst|Args)\s*:|\s*\|\s*(?:Catalyst|Args):|\s*Con:|\s*\|\s*|$)",
             block,
             re.DOTALL | re.IGNORECASE,
         )
-        action = action_m.group(1).strip() if action_m else ""
+        action = ""
+        if action_m:
+            action = re.sub(r"^\s*\*+\s*|\s*\*+\s*$", "", action_m.group(1).strip())
 
         # Timeline patterns: Q1-Q4 YYYY, YYYY, N-N months, etc.
         timeline_patterns = [
@@ -259,13 +283,14 @@ def parse_trackable_elements(summary: str) -> list[dict[str, Any]]:
 def extract_arguments_from_summary(summary: str) -> list[str]:
     """Extract supporting arguments from summary for conviction scoring."""
     args_list: list[str] = []
-    # Match "Args: [content]" before "Con:" or next "Pro Idea"
+    normalized = _normalize_table_cell(summary)
+    # Match "Args:" (not "Arguments") before Con, Counterarguments, table separator, or next Pro Idea
     for m in re.finditer(
-        r"Args:\s*([^|]+?)(?=\s*Con:|\s*Pro Idea \d+:|$)",
-        summary,
+        r"(?:\*\*)?Args(?!uments)(?:\*\*)?\s*:\s*([^|]+?)(?=\s*Con:|\s*Counterarguments:|\s*\|\s*|\s*Pro Idea \d+:|$)",
+        normalized,
         re.DOTALL | re.IGNORECASE,
     ):
-        arg = m.group(1).strip()
+        arg = re.sub(r"^\s*\*+\s*|\s*\*+\s*$", "", m.group(1).strip())
         if arg:
             args_list.append(arg)
     return args_list
