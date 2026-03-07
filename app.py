@@ -5,8 +5,8 @@ import re
 import pandas as pd
 import streamlit as st
 
-from src.config import ANALYST_ARCHETYPES
-from src.llm_analysts import brainstorm_ideas, critique_ideas
+from src.config import ANALYST_ARCHETYPES, resolve_archetype
+from src.llm_analysts import generate_ideas_combined
 from src.summary_generator import (
     format_exec_summary,
     parse_trackable_elements,
@@ -68,16 +68,32 @@ if "arguments_list" not in st.session_state:
     st.session_state.arguments_list = []
 
 if st.button("Generate Ideas"):
-    with st.spinner("Generating..."):
+    with st.status("Generating ideas...", expanded=True) as status:
         try:
-            brainstorm = brainstorm_ideas(theme, archetype=archetype)
-            critic = critique_ideas(brainstorm, archetype=archetype)
+            resolved = resolve_archetype(archetype) if archetype else None
+            if resolved:
+                persona = ANALYST_ARCHETYPES.get(resolved, {}).get("display_name", "analyst")
+                st.write(f"Thinking as {persona}...")
+            else:
+                st.write("Thinking...")
+
+            combined_stream = generate_ideas_combined(
+                theme, archetype=archetype, stream=True
+            )
+            full_text = st.write_stream(combined_stream)
+            parts = full_text.split("===CRITIC===", 1)
+            brainstorm = parts[0].strip() if parts else ""
+            critic = parts[1].strip() if len(parts) > 1 else ""
+
+            st.write("Finalising executive summary...")
             summary = format_exec_summary(brainstorm, critic)
             st.session_state.summary = summary
             st.session_state.trackables = parse_trackable_elements(summary)
             st.session_state.arguments_list = extract_arguments_from_summary(summary)
+            status.update(label="Complete!", state="complete")
         except (RuntimeError, ValueError, Exception) as e:
             st.error(str(e))
+            status.update(label="Error", state="error")
 
 # Display executive summary (Pro/Con in columns)
 if st.session_state.summary:
