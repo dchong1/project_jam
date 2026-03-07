@@ -15,7 +15,52 @@ if not GROK_API_KEY:
         "GROK_API_KEY is not set. Create a .env file with GROK_API_KEY=your_xai_api_key"
     )
 
+ANALYST_ARCHETYPES = {
+    "logical": {
+        "display_name": "Logical",
+        "aliases": ["spock", "logical"],
+        "description": "Evidence-first, deductive, avoids speculation. Focus on measurable catalysts and clear inference chains.",
+    },
+    "visionary": {
+        "display_name": "Visionary",
+        "aliases": ["bluesky", "star-gazer", "dream-weaver", "visionary"],
+        "description": "Long-horizon, creative, contrarian. Willing to explore blue-sky scenarios and non-obvious second-order effects.",
+    },
+    "conservative": {
+        "display_name": "Conservative",
+        "aliases": ["safe-player", "old-guard", "conservative"],
+        "description": "Risk-averse, proven catalysts, lower conviction bar. Prefer established patterns and defensive positioning.",
+    },
+    "sherlock": {
+        "display_name": "Sherlock",
+        "aliases": ["top-down", "dot-connector", "sherlock"],
+        "description": "Pattern-finding, connects disparate signals, narrative-driven. Top-down reasoning from macro to specific.",
+    },
+    "root_seeker": {
+        "display_name": "Root-Seeker",
+        "aliases": ["first-principle", "first-principle-thinker", "root-seeker"],
+        "description": "Bottom-up, fundamentals, physics of the market. First-principles reasoning from base truths.",
+    },
+}
+
+
+def resolve_archetype(user_input: str | None) -> str | None:
+    """Map user input (or alias) to canonical archetype key. Returns None if invalid/empty."""
+    if not user_input or not user_input.strip():
+        return None
+    normalized = user_input.strip().lower().replace(" ", "-").replace("_", "-")
+    for key, data in ANALYST_ARCHETYPES.items():
+        key_normalized = key.replace("_", "-")
+        if normalized == key_normalized:
+            return key
+        for alias in data["aliases"]:
+            if normalized == alias.replace(" ", "-").replace("_", "-"):
+                return key
+    return None
+
+
 brainstorm_prompt_template = '''Act as an investment analyst brainstorming specific, actionable opportunities for the theme: "{theme}".
+{archetype_instruction}Be concise: 1-2 sentences per field. Prioritize substance over length.
 Consider leading indicators (e.g., PMI, shipping indices, credit spreads, inventory, order flows) that precede or confirm catalysts, and use inference chains to connect signals to outcomes.
 Structure each idea as:
 - Idea: [Brief description, including 1st-order (direct) and 2nd-order (indirect, e.g., supply chain impacts, sector disruptions, market regime shifts, new demands, participant consolidations) effects].
@@ -24,9 +69,10 @@ Structure each idea as:
 - Actionable Opportunity: [Specific action. Use the best instrument for the thesis: equities (ticker), futures (e.g., HG copper, ES, ZN), FX (e.g., USD/JPY), ETFs, or options. Include duration and exit/catalyst].
 - Underwritten Catalyst/Event: [Articulate the key event or catalyst being bet on, making it measurable/trackable, e.g., "Q3 2026 earnings report showing >20% YoY growth in EV sales, verifiable via SEC filings or yfinance data"].
 - Supporting Arguments: [Fact-based, logical reasons why this could realize, with creative but grounded insights].
-Generate 3-5 ideas across sectors and asset classes (equities, commodities, FX, rates). Choose instrument type based on thesis: commodities/futures for supply-demand; FX for macro/rates; equities for company-specific; options for volatility or asymmetric payoff. Output in numbered list format for easy parsing.'''
+Generate 2-4 ideas across sectors and asset classes (equities, commodities, FX, rates). Choose instrument type based on thesis: commodities/futures for supply-demand; FX for macro/rates; equities for company-specific; options for volatility or asymmetric payoff. Output in numbered list format for easy parsing.'''
 
 critic_prompt_template = '''Act as a constructive investment critic reviewing the following brainstormed ideas: "{brainstorm_text}".
+{archetype_instruction}Be concise. One focused counterargument and one key suggestion per idea.
 For each idea, provide:
 - Counterarguments: [Fact-based risks or challenges to the idea, action, catalyst, and leading indicators, e.g., "Potential delay in catalyst due to regulatory hurdles; historical FDA approvals average 18 months"].
 - Leading Indicator Risks: [Could the leading indicators give false signals? Are there lags or regime changes?].

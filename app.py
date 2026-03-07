@@ -4,6 +4,8 @@ import re
 
 import pandas as pd
 import streamlit as st
+
+from src.config import ANALYST_ARCHETYPES
 from src.llm_analysts import brainstorm_ideas, critique_ideas
 from src.summary_generator import (
     format_exec_summary,
@@ -37,6 +39,18 @@ def _parse_pro_con_pairs(summary: str) -> list[tuple[str, str]]:
 
 st.title("Investment Idea Generator")
 
+archetype_options = ["Default (no preference)"] + [
+    f"{data['display_name']} ({', '.join(data['aliases'])})"
+    for data in ANALYST_ARCHETYPES.values()
+]
+archetype_labels = {opt: None if opt == "Default (no preference)" else opt.split(" (")[0] for opt in archetype_options}
+archetype_choice = st.selectbox(
+    "Analyst style",
+    options=archetype_options,
+    key="archetype_select",
+)
+archetype = archetype_labels.get(archetype_choice)
+
 theme_input = st.text_input(
     "Investment theme",
     value="",
@@ -56,8 +70,8 @@ if "arguments_list" not in st.session_state:
 if st.button("Generate Ideas"):
     with st.spinner("Generating..."):
         try:
-            brainstorm = brainstorm_ideas(theme)
-            critic = critique_ideas(brainstorm)
+            brainstorm = brainstorm_ideas(theme, archetype=archetype)
+            critic = critique_ideas(brainstorm, archetype=archetype)
             summary = format_exec_summary(brainstorm, critic)
             st.session_state.summary = summary
             st.session_state.trackables = parse_trackable_elements(summary)
