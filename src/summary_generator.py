@@ -14,7 +14,9 @@ _BRAINSTORM_LABELS = [
 ]
 _CRITIC_LABELS = [
     "Counterarguments",
+    "Constructive Tweaks",
     "Constructive Suggestions",
+    "Revised Action",
     "Revised Actionable Opportunity",
 ]
 
@@ -22,8 +24,8 @@ _CRITIC_LABELS = [
 def _parse_idea_blocks(text: str) -> list[dict[str, str]]:
     """Parse numbered idea blocks from brainstorm or critic text."""
     blocks: list[dict[str, str]] = []
-    # Split by numbered items: 1., 2., 1), 2), or **1.** etc.
-    pattern = r"\n\s*(?:\d+[\.\)]\s*|\*\*\d+\.\*\*\s*)"
+    # Split by numbered items: 1., 2., 1), 2), **1.**, or **Idea N —** (prompt format)
+    pattern = r"\n\s*(?:\d+[\.\)]\s*|\*\*\d+\.\*\*\s*|\*\*Idea\s+\d+\s*[—\-]\s*)"
     parts = re.split(pattern, text.strip())
     for i, part in enumerate(parts):
         part = part.strip()
@@ -31,7 +33,7 @@ def _parse_idea_blocks(text: str) -> list[dict[str, str]]:
             continue
         # Skip short preamble (intro text before first idea)
         if i == 0 and len(part) < 30 and not re.search(
-            r"(?:idea|actionable|catalyst|supporting|counterarguments|suggestions)\s*:",
+            r"(?:idea|actionable|catalyst|supporting|counterarguments|suggestions|tweaks)\s*:",
             part,
             re.IGNORECASE,
         ):
@@ -86,8 +88,10 @@ def _extract_field(
             # Append continuation lines until next field label
             j = i + 1
             field_start = re.compile(
-                r"^\s*[\-\*•]\s*(?:Idea|Actionable|Underwritten|Catalyst|Supporting|"
-                r"Counterarguments|Constructive|Revised)\s*:",
+                r"^\s*[\-\*•]\s*(?:Idea|Actionable Opportunity|Underwritten Catalyst/Event|"
+                r"Underwritten Catalyst|Supporting Arguments|Counterarguments|"
+                r"Constructive Tweaks|Constructive Suggestions|Revised Action|"
+                r"Revised Actionable Opportunity)\s*:",
                 re.IGNORECASE,
             )
             while j < len(lines) and lines[j].strip() and not field_start.match(lines[j]):
@@ -129,16 +133,20 @@ def _extract_brainstorm_fields(block: str) -> dict[str, str]:
 
 def _extract_critic_fields(block: str) -> dict[str, str]:
     """Extract Counterarguments, Suggestions, Revised from a critic block."""
+    next_suggestions = ["Constructive Tweaks", "Constructive Suggestions"]
+    next_revised = ["Revised Action", "Revised Actionable Opportunity"]
     return {
         "counterarguments": _extract_field(
-            block, "Counterarguments", ["Constructive Suggestions"]
-        ) or _extract_field(block, "counterarguments", ["Constructive Suggestions"]),
+            block, "Counterarguments", next_suggestions
+        ) or _extract_field(block, "counterarguments", next_suggestions),
         "suggestions": _extract_field(
-            block, "Constructive Suggestions", ["Revised Actionable Opportunity"]
-        ) or _extract_field(
-            block, "constructive suggestions", ["Revised Actionable Opportunity"]
-        ),
-        "revised": _extract_field(block, "Revised Actionable Opportunity")
+            block, "Constructive Tweaks", next_revised
+        ) or _extract_field(block, "Constructive Suggestions", next_revised)
+        or _extract_field(block, "constructive tweaks", next_revised)
+        or _extract_field(block, "constructive suggestions", next_revised),
+        "revised": _extract_field(block, "Revised Action")
+        or _extract_field(block, "Revised Actionable Opportunity")
+        or _extract_field(block, "revised action")
         or _extract_field(block, "revised actionable opportunity"),
     }
 

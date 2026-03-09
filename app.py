@@ -244,7 +244,11 @@ if st.button("Generate Ideas"):
             combined_stream = generate_ideas_combined(
                 theme, archetype=archetype, stream=True
             )
-            full_text = st.write_stream(combined_stream)
+            full_text = ""
+            output_placeholder = st.empty()
+            for chunk in combined_stream:
+                full_text += chunk
+                output_placeholder.markdown(full_text)
             parts = full_text.split("===CRITIC===", 1)
             brainstorm = parts[0].strip() if parts else ""
             critic = parts[1].strip() if len(parts) > 1 else ""
