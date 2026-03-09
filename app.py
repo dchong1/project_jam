@@ -39,9 +39,12 @@ def _summary_to_html(summary: str) -> str:
         return f"<div class='exec-summary'>{summary}</div>"
 
     def _cell_to_html(cell: str) -> str:
-        # Restore pipe chars that were escaped in markdown, then escape HTML, then bold
+        # Restore pipe chars, preserve <br> for line breaks, escape HTML, then bold
         unescaped = cell.replace("\\|", "|")
-        safe = html.escape(unescaped)
+        # Use placeholder so html.escape doesn't turn <br> into &lt;br&gt;
+        placeholder = "\u0001BR\u0001"
+        with_placeholder = unescaped.replace("<br>", placeholder)
+        safe = html.escape(with_placeholder).replace(placeholder, "<br>")
         return re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", safe)
 
     cards_html = []
