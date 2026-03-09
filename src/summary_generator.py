@@ -24,8 +24,8 @@ _CRITIC_LABELS = [
 def _parse_idea_blocks(text: str) -> list[dict[str, str]]:
     """Parse numbered idea blocks from brainstorm or critic text."""
     blocks: list[dict[str, str]] = []
-    # Split by numbered items: 1., 2., 1), 2), or **1.** etc.
-    pattern = r"\n\s*(?:\d+[\.\)]\s*|\*\*\d+\.\*\*\s*)"
+    # Split by numbered items: 1., 2., 1), 2), **1.**, or **Idea N —** (prompt format)
+    pattern = r"\n\s*(?:\d+[\.\)]\s*|\*\*\d+\.\*\*\s*|\*\*Idea\s+\d+\s*[—\-]\s*)"
     parts = re.split(pattern, text.strip())
     for i, part in enumerate(parts):
         part = part.strip()
