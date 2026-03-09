@@ -55,21 +55,12 @@ def _summary_to_html(summary: str) -> str:
             pros = _cell_to_html(pros_raw)
             cons = _cell_to_html(cons_raw)
             cards_html.append(
-                f"""
-                <div class="idea-row">
-                    <div class="idea-header">Idea {idea_num}</div>
-                    <div class="pro-con-container">
-                        <div class="pro-card">
-                            <div class="pro-label">✓ Pros</div>
-                            <div class="pro-content">{pros}</div>
-                        </div>
-                        <div class="con-card">
-                            <div class="con-label">✗ Cons</div>
-                            <div class="con-content">{cons}</div>
-                        </div>
-                    </div>
-                </div>
-                """
+                f'<div class="idea-row">'
+                f'<div class="idea-header">Idea {idea_num}</div>'
+                f'<div class="pro-con-container">'
+                f'<div class="pro-card"><div class="pro-label">✓ Pros</div><div class="pro-content">{pros}</div></div>'
+                f'<div class="con-card"><div class="con-label">✗ Cons</div><div class="con-content">{cons}</div></div>'
+                f'</div></div>'
             )
     if not cards_html:
         return f"<div class='exec-summary'>{summary}</div>"
@@ -358,10 +349,11 @@ if st.button("Generate Ideas"):
 # Display executive summary (tabular Pro/Con)
 if st.session_state.summary:
     st.subheader("Executive Summary")
-    st.markdown(
-        _summary_to_html(st.session_state.summary),
-        unsafe_allow_html=True,
-    )
+    summary_html = _summary_to_html(st.session_state.summary)
+    if hasattr(st, "html"):
+        st.html(summary_html)
+    else:
+        st.markdown(summary_html, unsafe_allow_html=True)
 
 # Display trackable elements
 if st.session_state.trackables:
