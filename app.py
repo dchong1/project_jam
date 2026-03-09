@@ -1,5 +1,6 @@
 """Streamlit web app for the Investment Idea Generator."""
 
+import html
 import re
 
 import pandas as pd
@@ -15,25 +16,41 @@ from src.summary_generator import (
 )
 
 
+def _parse_table_row(line: str) -> tuple[str, str, str] | None:
+    """Parse a markdown table row into (idea_num, pros, cons). Returns None if invalid."""
+    if not line.startswith("|") or not line.endswith("|"):
+        return None
+    # Split on | that is not preceded by backslash (escaped pipe in cell content)
+    parts = re.split(r"(?<!\\)\|", line)
+    # Expect: ["", "idea", "pros", "cons", ""] or ["", "idea", "pros", "cons"]
+    if len(parts) < 4:
+        return None
+    idea_num = parts[1].strip()
+    pros = parts[2].strip()
+    cons = parts[3].strip()
+    return (idea_num, pros, cons)
+
+
 def _summary_to_html(summary: str) -> str:
     """Convert markdown table summary to HTML with side-by-side Pro/Con cards."""
-    lines = [ln.strip() for ln in summary.split("\n") if ln.strip()]
+    # Normalize line endings and filter empty lines
+    lines = [ln.strip() for ln in summary.replace("\r\n", "\n").split("\n") if ln.strip()]
     if not lines or not lines[0].startswith("|") or "Pros" not in lines[0]:
         return f"<div class='exec-summary'>{summary}</div>"
 
     def _cell_to_html(cell: str) -> str:
-        html = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", cell)
-        return html.replace("\\|", "|")
+        # Restore pipe chars that were escaped in markdown, then escape HTML, then bold
+        unescaped = cell.replace("\\|", "|")
+        safe = html.escape(unescaped)
+        return re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", safe)
 
     cards_html = []
     for line in lines[2:]:  # Skip header and separator
-        if not line.startswith("|"):
-            continue
-        parts = re.split(r"(?<!\\)\|", line)
-        if len(parts) >= 4:
-            idea_num = parts[1].strip()
-            pros = _cell_to_html(parts[2].strip())
-            cons = _cell_to_html(parts[3].strip())
+        parsed = _parse_table_row(line)
+        if parsed:
+            idea_num, pros_raw, cons_raw = parsed
+            pros = _cell_to_html(pros_raw)
+            cons = _cell_to_html(cons_raw)
             cards_html.append(
                 f"""
                 <div class="idea-row">
@@ -172,10 +189,17 @@ _NORDIC_CSS = """
     .exec-summary-cards {
         display: flex;
         flex-direction: column;
+        flex-wrap: nowrap;
+        align-items: stretch;
         gap: 1.5rem;
         font-family: 'Inter', system-ui, sans-serif !important;
+        width: 100%;
     }
     .idea-row {
+        display: block;
+        width: 100%;
+        min-width: 0;
+        flex-shrink: 0;
         background: #FFFFFF;
         border-radius: 12px;
         overflow: hidden;
@@ -194,6 +218,7 @@ _NORDIC_CSS = """
         grid-template-columns: 1fr 1fr;
         gap: 0;
         min-height: 120px;
+        align-items: start;
     }
     .pro-card {
         padding: 1rem 1.25rem;
