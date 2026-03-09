@@ -62,19 +62,28 @@ def resolve_archetype(user_input: str | None) -> str | None:
 
 # Shared prompt building blocks (compose brainstorm/critic/combined templates)
 
-_BRAINSTORM_STRUCTURE = '''Think like a investment analyst in a top-tier buyside firm, writing a 1-page memo. Zero filler. Every idea with specific instrument, specific timeline, and specific measurable catalyst. Include 1st-order effect and 2nd-order effects (for example, supply chain, consolidation, regime shift etc). Max 4–6 ideas, each < 300 words.
+_BRAINSTORM_STRUCTURE = '''
+Think like a investment analyst in a top-tier buyside firm, writing a 1-page memo. Zero filler. 
+Every idea with specific instrument, specific timeline, and specific measurable catalyst. 
+Include 1st-order effect and 2nd-order effects (for example, supply chain, consolidation, regime shift etc). 
+Max 3-5 ideas, each < 300 words.
 
 Format each idea as:
 **Idea N — [Archetype]**
-- Idea: [Brief description with 1st + 2nd order effects]
+- Idea: [Brief description with 1st + 2nd order effects, with reductive ]
 - Actionable Opportunity: [Long [ticker] equity for [X–Y months] until [exact catalyst event] etc.]
 - Underwritten Catalyst: [Trackable event: earnings date, FDA/SEC filing, regulatory decision, verifiable metric in 10-Q etc.]
 - Supporting Arguments: [Fact-based reasons; no generic language]
 '''
 
-_CRITIC_STRUCTURE = """Enhance, don't dismiss. One focused counterargument and one key tweak per idea. Quantify where possible (e.g., "30% historical failure rate"). Draw on empirical data or case studies to strengthen critiques.
+_CRITIC_STRUCTURE = """
+Enhance, don't dismiss. One focused counterargument and one key tweak per idea. 
+Quantify where possible (e.g., "30% historical failure rate"). 
+Draw on empirical data or case studies to strengthen critiques.
 
-For each idea:
+You MUST provide exactly one critique per brainstormed idea. Start each critique with "Idea 1", "Idea 2", etc. on its own line.
+
+For each idea, use this exact format:
 - Counterarguments: [Fact-based risks to idea, action, catalyst]
 - Constructive Tweaks: [Improvements or mitigations; propose hedges if useful]
 - Revised Action: [Only if original has clear flaws; otherwise affirm. Format: Long [ticker] for [X–Y months] until [refined catalyst]]"""
