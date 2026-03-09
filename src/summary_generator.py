@@ -24,8 +24,12 @@ _CRITIC_LABELS = [
 def _parse_idea_blocks(text: str) -> list[dict[str, str]]:
     """Parse numbered idea blocks from brainstorm or critic text."""
     blocks: list[dict[str, str]] = []
-    # Split by numbered items: 1., 2., 1), 2), **1.**, or **Idea N —** (prompt format)
-    pattern = r"\n\s*(?:\d+[\.\)]\s*|\*\*\d+\.\*\*\s*|\*\*Idea\s+\d+\s*[—\-]\s*)"
+    # Split by numbered items: 1., 2., 1), 2), **1.**, **Idea N —**, Idea N:, Critique N:, etc.
+    pattern = (
+        r"\n\s*(?:\d+[\.\)]\s*|\*\*\d+\.\*\*\s*|\*\*Idea\s+\d+\s*[—\-]\s*|"
+        r"Idea\s+\d+\s*[:\-]|Idea\s+\d+\b|"
+        r"Critique\s+\d+\s*[:\-]|Critique\s+\d+\b)"
+    )
     parts = re.split(pattern, text.strip())
     for i, part in enumerate(parts):
         part = part.strip()
@@ -89,9 +93,9 @@ def _extract_field(
             j = i + 1
             field_start = re.compile(
                 r"^\s*[\-\*•]\s*(?:Idea|Actionable Opportunity|Underwritten Catalyst/Event|"
-                r"Underwritten Catalyst|Supporting Arguments|Counterarguments|"
-                r"Constructive Tweaks|Constructive Suggestions|Revised Action|"
-                r"Revised Actionable Opportunity)\s*:",
+                r"Underwritten Catalyst|Supporting Arguments|Counterarguments|Counter-arguments|"
+                r"Risks|Critique|Constructive Tweaks|Constructive Suggestions|Tweaks|Suggestions|"
+                r"Revised Action|Revised Actionable Opportunity|Revised)\s*:",
                 re.IGNORECASE,
             )
             while j < len(lines) and lines[j].strip() and not field_start.match(lines[j]):
@@ -105,7 +109,7 @@ def _extract_field(
 
 def _extract_brainstorm_fields(block: str) -> dict[str, str]:
     """Extract Idea, Action, Catalyst, Args from a brainstorm block."""
-    return {
+    raw = {
         "idea": _extract_field(
             block, "Idea", ["Actionable Opportunity"]
         ) or _extract_field(block, "idea", ["Actionable Opportunity"]),
@@ -129,32 +133,52 @@ def _extract_brainstorm_fields(block: str) -> dict[str, str]:
         "args": _extract_field(block, "Supporting Arguments")
         or _extract_field(block, "supporting arguments"),
     }
+    return {k: _truncate_at_next_idea(v) for k, v in raw.items()}
+
+
+def _truncate_at_next_idea(text: str) -> str:
+    """Truncate content at 'Idea N' or '**Idea N' to prevent bleed from next block."""
+    if not text:
+        return text
+    m = re.search(r"\n\s*(?:\*\*)?Idea\s+\d+\b", text, re.IGNORECASE)
+    return text[: m.start()].strip() if m else text
 
 
 def _extract_critic_fields(block: str) -> dict[str, str]:
     """Extract Counterarguments, Suggestions, Revised from a critic block."""
     next_suggestions = ["Constructive Tweaks", "Constructive Suggestions"]
     next_revised = ["Revised Action", "Revised Actionable Opportunity"]
-    return {
+    raw = {
         "counterarguments": _extract_field(
             block, "Counterarguments", next_suggestions
-        ) or _extract_field(block, "counterarguments", next_suggestions),
+        ) or _extract_field(block, "counterarguments", next_suggestions)
+        or _extract_field(block, "Counter-arguments", next_suggestions)
+        or _extract_field(block, "Risks", next_suggestions)
+        or _extract_field(block, "Critique", next_suggestions),
         "suggestions": _extract_field(
             block, "Constructive Tweaks", next_revised
         ) or _extract_field(block, "Constructive Suggestions", next_revised)
         or _extract_field(block, "constructive tweaks", next_revised)
-        or _extract_field(block, "constructive suggestions", next_revised),
+        or _extract_field(block, "constructive suggestions", next_revised)
+        or _extract_field(block, "Tweaks", next_revised)
+        or _extract_field(block, "Suggestions", next_revised),
         "revised": _extract_field(block, "Revised Action")
         or _extract_field(block, "Revised Actionable Opportunity")
         or _extract_field(block, "revised action")
-        or _extract_field(block, "revised actionable opportunity"),
+        or _extract_field(block, "revised actionable opportunity")
+        or _extract_field(block, "Revised"),
     }
+    # Truncate any field that captured content from next idea block
+    return {k: _truncate_at_next_idea(v) for k, v in raw.items()}
 
 
 def format_exec_summary(brainstorm: str, critic: str) -> str:
     """Produce Markdown table summary with Pros and Cons paired for easy evaluation."""
     brainstorm_blocks = _parse_idea_blocks(brainstorm)
     critic_blocks = _parse_idea_blocks(critic)
+    # Fallback: if critic has no parsed blocks but has content, treat whole critic as one block
+    if not critic_blocks and critic.strip():
+        critic_blocks = [{"raw": critic.strip()}]
 
     rows: list[str] = []
     for i, b_block in enumerate(brainstorm_blocks):

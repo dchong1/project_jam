@@ -62,30 +62,31 @@ def resolve_archetype(user_input: str | None) -> str | None:
 
 # Shared prompt building blocks (compose brainstorm/critic/combined templates)
 
-_BRAINSTORM_STRUCTURE = '''Think like a hedge-fund analyst writing a 1-page memo. Zero filler. Every idea: real ticker, timeline (6–12 months), measurable catalyst. Include 1st-order + 2nd-order effects (supply chain, consolidation, regime shift). Max 4–6 ideas, each < 200 words.
+_BRAINSTORM_STRUCTURE = '''
+Think like a investment analyst in a top-tier buyside firm, writing a 1-page memo. Zero filler. 
+Every idea with specific instrument, specific timeline, and specific measurable catalyst. 
+Include 1st-order effect and 2nd-order effects (for example, supply chain, consolidation, regime shift etc). 
+Max 3-5 ideas, each < 300 words.
 
 Format each idea as:
 **Idea N — [Archetype]**
-- Idea: [Brief description with 1st + 2nd order effects]
-- Actionable Opportunity: Long [ticker] equity for [X–Y months] until [exact catalyst event]
-- Underwritten Catalyst: [Trackable event: earnings date, FDA/SEC filing, regulatory decision, verifiable metric in 10-Q]
+- Idea: [Brief description with 1st + 2nd order effects, with reductive ]
+- Actionable Opportunity: [Long [ticker] equity for [X–Y months] until [exact catalyst event] etc.]
+- Underwritten Catalyst: [Trackable event: earnings date, FDA/SEC filing, regulatory decision, verifiable metric in 10-Q etc.]
 - Supporting Arguments: [Fact-based reasons; no generic language]
+'''
 
-Example:
-**Idea 1 — Spock**
-- Idea: AI diagnostics disrupting radiology + 2nd-order hospital cost compression.
-- Actionable Opportunity: Long GEHC for 9–12 months until Q4 2026 earnings.
-- Underwritten Catalyst: FDA clearance of GE's AI imaging suite + >18% YoY revenue in AI segment (verifiable in 10-Q).
-- Supporting Arguments: ...'''
+_CRITIC_STRUCTURE = """
+Enhance, don't dismiss. One focused counterargument and one key tweak per idea. 
+Quantify where possible (e.g., "30% historical failure rate"). 
+Draw on empirical data or case studies to strengthen critiques.
 
+You MUST provide exactly one critique per brainstormed idea. Start each critique with "Idea 1", "Idea 2", etc. on its own line.
 
-
-_CRITIC_STRUCTURE = '''Enhance, don't dismiss. One focused counterargument and one key tweak per idea. Quantify where possible (e.g., "30% historical failure rate"). Draw on empirical data or case studies to strengthen critiques.
-
-For each idea:
+For each idea, use this exact format:
 - Counterarguments: [Fact-based risks to idea, action, catalyst]
 - Constructive Tweaks: [Improvements or mitigations; propose hedges if useful]
-- Revised Action: [Only if original has clear flaws; otherwise affirm. Format: Long [ticker] for [X–Y months] until [refined catalyst]]'''
+- Revised Action: [Only if original has clear flaws; otherwise affirm. Format: Long [ticker] for [X–Y months] until [refined catalyst]]"""
 
 
 
