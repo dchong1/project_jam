@@ -212,7 +212,7 @@ _NORDIC_CSS = """
         grid-template-columns: 1fr 1fr;
         gap: 0;
         min-height: 120px;
-        align-items: start;
+        align-items: stretch;
     }
     .pro-card {
         padding: 1rem 1.25rem;
