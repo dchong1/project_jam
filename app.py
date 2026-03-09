@@ -16,17 +16,16 @@ from src.summary_generator import (
 
 
 def _summary_to_html(summary: str) -> str:
-    """Convert markdown table summary to HTML so <br> and **bold** render correctly."""
+    """Convert markdown table summary to HTML with side-by-side Pro/Con cards."""
     lines = [ln.strip() for ln in summary.split("\n") if ln.strip()]
     if not lines or not lines[0].startswith("|") or "Pros" not in lines[0]:
         return f"<div class='exec-summary'>{summary}</div>"
 
     def _cell_to_html(cell: str) -> str:
-        # **text** -> <strong>text</strong>, <br> stays as line break
         html = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", cell)
         return html.replace("\\|", "|")
 
-    rows_html = []
+    cards_html = []
     for line in lines[2:]:  # Skip header and separator
         if not line.startswith("|"):
             continue
@@ -35,19 +34,27 @@ def _summary_to_html(summary: str) -> str:
             idea_num = parts[1].strip()
             pros = _cell_to_html(parts[2].strip())
             cons = _cell_to_html(parts[3].strip())
-            rows_html.append(
-                f"<tr><td style='text-align:center;font-weight:600'>{idea_num}</td>"
-                f"<td>{pros}</td><td>{cons}</td></tr>"
+            cards_html.append(
+                f"""
+                <div class="idea-row">
+                    <div class="idea-header">Idea {idea_num}</div>
+                    <div class="pro-con-container">
+                        <div class="pro-card">
+                            <div class="pro-label">✓ Pros</div>
+                            <div class="pro-content">{pros}</div>
+                        </div>
+                        <div class="con-card">
+                            <div class="con-label">✗ Cons</div>
+                            <div class="con-content">{cons}</div>
+                        </div>
+                    </div>
+                </div>
+                """
             )
-    if not rows_html:
+    if not cards_html:
         return f"<div class='exec-summary'>{summary}</div>"
 
-    table = (
-        "<table class='exec-summary-table'><thead><tr>"
-        "<th style='text-align:center'>Idea</th><th>Pros</th><th>Cons</th>"
-        "</tr></thead><tbody>" + "".join(rows_html) + "</tbody></table>"
-    )
-    return table
+    return f'<div class="exec-summary-cards">{"".join(cards_html)}</div>'
 
 
 # Page config (must be first Streamlit command)
@@ -160,6 +167,65 @@ _NORDIC_CSS = """
     .exec-summary-table tr:nth-child(even) td {
         background: var(--nord6) !important;
     }
+
+    /* Side-by-side Pro/Con card layout */
+    .exec-summary-cards {
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+        font-family: 'Inter', system-ui, sans-serif !important;
+    }
+    .idea-row {
+        background: #FFFFFF;
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid var(--nord4);
+        box-shadow: 0 2px 8px rgba(46, 52, 64, 0.06);
+    }
+    .idea-header {
+        background: var(--nord10);
+        color: #FFFFFF;
+        padding: 0.5rem 1rem;
+        font-weight: 600;
+        font-size: 0.95rem;
+    }
+    .pro-con-container {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0;
+        min-height: 120px;
+    }
+    .pro-card {
+        padding: 1rem 1.25rem;
+        background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
+        border-right: 1px solid var(--nord4);
+    }
+    .con-card {
+        padding: 1rem 1.25rem;
+        background: linear-gradient(135deg, #fef2f2 0%, #fff1f2 100%);
+    }
+    .pro-label, .con-label {
+        font-weight: 600;
+        font-size: 0.85rem;
+        margin-bottom: 0.5rem;
+    }
+    .pro-label { color: #059669; }
+    .con-label { color: #dc2626; }
+    .pro-content, .con-content {
+        font-size: 0.9rem;
+        line-height: 1.5;
+        color: var(--nord1);
+    }
+    .pro-content strong, .con-content strong {
+        color: var(--nord0);
+    }
+    @media (max-width: 768px) {
+        .pro-con-container {
+            grid-template-columns: 1fr;
+        }
+        .pro-card { border-right: none; border-bottom: 1px solid var(--nord4); }
+    }
+
     .stMarkdown table {
         border-collapse: separate !important;
         border-spacing: 0 !important;
