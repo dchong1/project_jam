@@ -232,36 +232,34 @@ if "arguments_list" not in st.session_state:
     st.session_state.arguments_list = []
 
 if st.button("Generate Ideas"):
-    with st.status("Generating ideas...", expanded=True) as status:
-        try:
-            resolved = resolve_archetype(archetype) if archetype else None
-            if resolved:
-                persona = ANALYST_ARCHETYPES.get(resolved, {}).get("display_name", "analyst")
-                st.write(f"Thinking as {persona}...")
-            else:
-                st.write("Thinking...")
+    try:
+        resolved = resolve_archetype(archetype) if archetype else None
+        if resolved:
+            persona = ANALYST_ARCHETYPES.get(resolved, {}).get("display_name", "analyst")
+            st.write(f"Thinking as {persona}...")
+        else:
+            st.write("Thinking...")
 
-            combined_stream = generate_ideas_combined(
-                theme, archetype=archetype, stream=True
-            )
-            full_text = ""
-            output_placeholder = st.empty()
-            for chunk in combined_stream:
-                full_text += chunk
-                output_placeholder.markdown(full_text)
-            parts = full_text.split("===CRITIC===", 1)
-            brainstorm = parts[0].strip() if parts else ""
-            critic = parts[1].strip() if len(parts) > 1 else ""
+        combined_stream = generate_ideas_combined(
+            theme, archetype=archetype, stream=True
+        )
+        full_text = ""
+        output_placeholder = st.empty()
+        for chunk in combined_stream:
+            full_text += chunk
+            output_placeholder.markdown(full_text)
+        parts = full_text.split("===CRITIC===", 1)
+        brainstorm = parts[0].strip() if parts else ""
+        critic = parts[1].strip() if len(parts) > 1 else ""
 
-            st.write("Finalising executive summary...")
-            summary = format_exec_summary(brainstorm, critic)
-            st.session_state.summary = summary
-            st.session_state.trackables = parse_trackable_elements(summary)
-            st.session_state.arguments_list = extract_arguments_from_summary(summary)
-            status.update(label="Complete!", state="complete")
-        except (RuntimeError, ValueError, Exception) as e:
-            st.error(str(e))
-            status.update(label="Error", state="error")
+        output_placeholder.empty()
+        st.write("Finalising executive summary...")
+        summary = format_exec_summary(brainstorm, critic)
+        st.session_state.summary = summary
+        st.session_state.trackables = parse_trackable_elements(summary)
+        st.session_state.arguments_list = extract_arguments_from_summary(summary)
+    except (RuntimeError, ValueError, Exception) as e:
+        st.error(str(e))
 
 # Display executive summary (tabular Pro/Con)
 if st.session_state.summary:
