@@ -18,8 +18,10 @@ project_jam/
 │       └── self-improve.mdc      # Rule improvement triggers and process
 ├── src/
 │   ├── config.py                # API key, prompts, Grok settings
-│   ├── llm_analysts.py          # brainstorm_ideas, critique_ideas
+│   ├── idea_exporter.py         # export_to_notion
+│   ├── llm_analysts.py          # brainstorm_ideas, critique_ideas, generate_keywords_for_ideas
 │   └── summary_generator.py     # format_exec_summary, parse_trackable_elements, calculate_conviction
+├── app.py                       # Streamlit web app
 ├── main.py                      # Console entry point
 ├── requirements.txt
 ├── .env.example

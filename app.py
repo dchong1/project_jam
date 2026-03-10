@@ -1,6 +1,7 @@
 """Streamlit web app for the Investment Idea Generator."""
 
 import html
+import os
 import re
 
 import streamlit as st
@@ -13,6 +14,7 @@ from src.summary_generator import (
     extract_arguments_from_summary,
     calculate_conviction,
 )
+from src.idea_exporter import export_to_notion
 
 
 def _parse_table_row(line: str) -> tuple[str, str, str] | None:
@@ -51,13 +53,37 @@ def _summary_to_html(summary: str) -> str:
         parsed = _parse_table_row(line)
         if parsed:
             idea_num, pros_raw, cons_raw = parsed
-            # Strip "Pro Idea N:" prefix from display
+            # Extract header for the blue bar: prefer **Header:**, fallback to **Idea:**, then Idea N
+            header_match = re.search(
+                r"Header\s*:\s*\*\*\s*([^<]+?)(?=<br>)",
+                pros_raw,
+                re.IGNORECASE,
+            )
+            if header_match:
+                header_text = header_match.group(1).strip()
+            else:
+                idea_name_match = re.search(
+                    r"Idea\s*:\s*\*\*\s*([^<]+?)(?=<br>|\n)",
+                    pros_raw,
+                    re.IGNORECASE,
+                )
+                header_text = idea_name_match.group(1).strip() if idea_name_match else f"Idea {idea_num}"
+            if not header_text:
+                header_text = f"Idea {idea_num}"
+            # Strip "Pro Idea N:" prefix and **Header:** line from Pros content (keep header bar only)
             pros_raw = re.sub(r"^Pro Idea \d+:\s*(?:<br>|\n)*\s*", "", pros_raw)
+            pros_raw = re.sub(
+                r"(?:<br>|\n)*\s*\*\*Header\*\*\s*:\s*[^<]+(?:<br>|\n)*",
+                "",
+                pros_raw,
+                count=1,
+                flags=re.IGNORECASE,
+            )
             pros = _cell_to_html(pros_raw)
             cons = _cell_to_html(cons_raw)
             cards_html.append(
                 f'<div class="idea-row">'
-                f'<div class="idea-header">Idea {idea_num}</div>'
+                f'<div class="idea-header">{html.escape(header_text)}</div>'
                 f'<div class="pro-con-container">'
                 f'<div class="pro-card"><div class="pro-label">✓ Pros</div><div class="pro-content">{pros}</div></div>'
                 f'<div class="con-card"><div class="con-label">✗ Cons</div><div class="con-content">{cons}</div></div>'
@@ -75,7 +101,7 @@ def _trackables_to_html(trackables: list[dict]) -> str:
         return ""
     rows = []
     for t in trackables:
-        idea_id = t.get("idea_id", "")
+        idea_display = t.get("idea_name") or f"Idea {t.get('idea_id', '')}"
         ticker = t.get("ticker") or "—"
         catalyst = html.escape(str(t.get("catalyst") or "—"))
         timeline = t.get("timeline") or "—"
@@ -83,7 +109,7 @@ def _trackables_to_html(trackables: list[dict]) -> str:
         ticker_class = ' class="ticker"' if ticker and ticker != "—" else ""
         rows.append(
             f"<tr>"
-            f'<td style="font-weight:600">{idea_id}</td>'
+            f'<td style="font-weight:600">{html.escape(str(idea_display))}</td>'
             f"<td{ticker_class}>{html.escape(str(ticker))}</td>"
             f"<td>{catalyst}</td>"
             f"<td>{html.escape(str(timeline))}</td>"
@@ -93,7 +119,7 @@ def _trackables_to_html(trackables: list[dict]) -> str:
     table = (
         '<table class="trackable-table">'
         "<thead><tr>"
-        "<th>Idea</th><th>Ticker</th><th>Catalyst</th><th>Timeline</th><th>Metric</th>"
+        "<th>Ideas</th><th>Ticker</th><th>Catalyst</th><th>Timeline</th><th>Metric</th>"
         "</tr></thead><tbody>"
         + "".join(rows)
         + "</tbody></table>"
@@ -425,6 +451,27 @@ _NORDIC_CSS = """
         border-radius: 4px;
         transition: width 0.2s ease;
     }
+
+    /* Loading bar */
+    .loading-bar-container {
+        width: 100%;
+        height: 3px;
+        background: var(--nord4);
+        border-radius: 2px;
+        overflow: hidden;
+        margin: 0.5rem 0 1rem;
+    }
+    .loading-bar-fill {
+        height: 100%;
+        width: 30%;
+        background: var(--nord10);
+        border-radius: 2px;
+        animation: loading-slide 1.2s ease-in-out infinite;
+    }
+    @keyframes loading-slide {
+        0% { transform: translateX(-100%); }
+        100% { transform: translateX(400%); }
+    }
 </style>
 """
 st.markdown(_NORDIC_CSS, unsafe_allow_html=True)
@@ -481,6 +528,11 @@ _, btn_col, _ = st.columns([2, 1, 2])
 with btn_col:
     generate_clicked = st.button("Generate Ideas", key="generate_ideas")
 if generate_clicked:
+    loading_placeholder = st.empty()
+    loading_placeholder.markdown(
+        '<div class="loading-bar-container"><div class="loading-bar-fill"></div></div>',
+        unsafe_allow_html=True,
+    )
     try:
         combined_stream = generate_ideas_combined(
             theme, archetype=archetype, stream=True
@@ -495,11 +547,16 @@ if generate_clicked:
         critic = parts[1].strip() if len(parts) > 1 else ""
 
         output_placeholder.empty()
+        loading_placeholder.empty()
         summary = format_exec_summary(brainstorm, critic)
+        if os.getenv("DEBUG_BRAINSTORM"):
+            with open("debug_brainstorm.txt", "w") as f:
+                f.write(brainstorm)
         st.session_state.summary = summary
         st.session_state.trackables = parse_trackable_elements(summary)
         st.session_state.arguments_list = extract_arguments_from_summary(summary)
     except (RuntimeError, ValueError, Exception) as e:
+        loading_placeholder.empty()
         st.error(str(e))
 
 # Display executive summary (tabular Pro/Con)
@@ -554,3 +611,20 @@ if st.session_state.arguments_list:
         f"</div>"
     )
     st.markdown(conviction_html, unsafe_allow_html=True)
+
+# Export to Notion
+if st.session_state.summary and st.session_state.trackables is not None:
+    st.markdown(
+        '<p class="report-section-title">Export</p>',
+        unsafe_allow_html=True,
+    )
+    if st.button("Export to Notion", key="export_notion"):
+        try:
+            msg = export_to_notion(
+                st.session_state.summary,
+                st.session_state.trackables,
+                theme,
+            )
+            st.success(msg)
+        except (ValueError, RuntimeError) as e:
+            st.error(str(e))

@@ -1,6 +1,7 @@
 .env
 .env.*
 !.env.example
+debug_brainstorm.txt
 __pycache__/
 *.pyc
 .venv/
