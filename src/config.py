@@ -1,10 +1,12 @@
 """Configuration for the investment idea generation app."""
 
 import os
+from pathlib import Path
 
 from dotenv import load_dotenv
 
-load_dotenv()
+# Load .env from project root (parent of src/) so it's found regardless of CWD
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 GROK_API_KEY = os.getenv("GROK_API_KEY")
 GROK_BASE_URL = "https://api.x.ai/v1"
@@ -15,6 +17,9 @@ if not GROK_API_KEY:
     raise ValueError(
         "GROK_API_KEY is not set. Create a .env file with GROK_API_KEY=your_xai_api_key"
     )
+
+NOTION_API_KEY = os.getenv("NOTION_API_KEY")
+NOTION_DATABASE_ID = os.getenv("NOTION_DATABASE_ID")
 
 ANALYST_ARCHETYPES = {
     "logical": {

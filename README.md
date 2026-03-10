@@ -6,7 +6,75 @@
 
 A modular Python backend that uses the Grok API (OpenAI-compatible) to generate and critique investment ideas. Two analyst LLMs work in sequence: a brainstormer produces 3-5 actionable ideas with catalysts and supporting arguments, and a critic provides counterarguments and constructive suggestions.
 
-## How It Works
+## Thought Process
+
+The system follows a hedge-fund analyst workflow: **generate → stress-test → synthesize → track**.
+
+```mermaid
+flowchart TB
+    subgraph Input
+        Theme[Investment Theme]
+        Archetype[Analyst Archetype]
+    end
+
+    subgraph Generation["1. Generate"]
+        Brainstorm[Brainstorm LLM]
+        B1[Idea + Catalyst]
+        B2[Actionable Opportunity]
+        B3[Supporting Arguments]
+    end
+
+    subgraph Stress["2. Stress-Test"]
+        Critic[Critic LLM]
+        C1[Counterarguments]
+        C2[Constructive Tweaks]
+        C3[Revised Action]
+    end
+
+    subgraph Synthesize["3. Synthesize"]
+        Summary[Executive Summary]
+        Pros[Pros by idea]
+        Cons[Cons by idea]
+    end
+
+    subgraph Track["4. Track"]
+        Trackables[Trackable Elements]
+        Conviction[Conviction Score]
+    end
+
+    Theme --> Brainstorm
+    Archetype --> Brainstorm
+    Brainstorm --> B1 & B2 & B3
+    B1 & B2 & B3 --> Critic
+    Critic --> C1 & C2 & C3
+    C1 & C2 & C3 --> Summary
+    Summary --> Pros & Cons
+    Pros & Cons --> Trackables
+    Pros & Cons --> Conviction
+```
+
+| Phase | What Happens |
+|-------|--------------|
+| **1. Generate** | Brainstormer produces 3–5 ideas. Each idea: catalyst, actionable opportunity, supporting arguments. |
+| **2. Stress-Test** | Critic reviews each idea for counterarguments, tweaks, and revised actions. |
+| **3. Synthesize** | Pro/con views aligned by idea in an executive summary table. |
+| **4. Track** | Extract catalyst, timeline, metric, ticker for each idea; compute conviction score. |
+
+**Style:** Every idea is underwritten by a single, measurable catalyst. Output is concise and specific—think hedge-fund analyst memo for a PM. See [AGENTS.md](AGENTS.md) for prompt structure and tone.
+
+### User Flow (Streamlit)
+
+```mermaid
+flowchart LR
+    A[Enter Theme] --> B[Select Archetype]
+    B --> C[Generate Ideas]
+    C --> D[View Summary]
+    D --> E[Set Weights]
+    E --> F[Conviction Score]
+    F --> G[Export to Notion]
+```
+
+## End-to-End Pipeline
 
 ```mermaid
 flowchart LR
@@ -27,9 +95,27 @@ flowchart LR
 
 ```mermaid
 flowchart TB
-    main[main.py] --> llm[llm_analysts.py]
-    main --> summary[summary_generator.py]
-    llm --> config[config.py]
+    subgraph Entry["Entry Points"]
+        main[main.py]
+        app[app.py]
+    end
+
+    subgraph Core["Core Logic"]
+        llm[llm_analysts.py]
+        summary[summary_generator.py]
+        exporter[idea_exporter.py]
+    end
+
+    subgraph Config["config.py"]
+        config[API key, prompts, Grok settings]
+    end
+
+    main --> llm
+    main --> summary
+    app --> llm
+    app --> summary
+    app --> exporter
+    llm --> config
     summary --> config
 ```
 
@@ -55,6 +141,7 @@ flowchart TB
 
 Activate the virtual environment (if not already active), then run:
 
+**Console (main.py):**
 ```bash
 source .venv/bin/activate
 python main.py
@@ -64,14 +151,54 @@ python main.py
 - The app will generate ideas, run the critic, and print the executive summary and trackable elements.
 - Enter weights (1-10) for each idea, comma-separated, to compute a conviction score.
 
+**Streamlit (app.py):**
+```bash
+streamlit run app.py
+```
+
+- Enter theme, select analyst archetype, click **Generate Ideas**.
+- View executive summary, trackables, set conviction weights, and optionally **Export to Notion**.
+
+## Export to Notion
+
+After generating ideas in the Streamlit app, use **Export to Notion** to add them to your idea database.
+
+1. Create a [Notion integration](https://www.notion.so/my-integrations) and copy the API key.
+2. Create a database in Notion with these properties:
+
+   | Property | Type | Description |
+   |----------|------|-------------|
+   | idea_id | rich_text | Unique identifier (UUID) |
+   | Title | title | Idea one-liner |
+   | Theme | rich_text | Investment theme |
+   | Ticker | rich_text | Stock symbol |
+   | Action | rich_text | Actionable opportunity |
+   | Catalyst | rich_text | Trackable catalyst |
+   | Timeline | rich_text | Time horizon |
+   | Metric | rich_text | Key metric |
+   | Pros | rich_text | Full pros text |
+   | Cons | rich_text | Full cons text |
+   | Keywords | multi_select | 2-3 broad keywords |
+   | Date | date | Export timestamp |
+
+3. Share the database with your integration (⋯ → Add connections).
+4. Copy the database ID from the URL (`notion.so/...?v=xxx` → the 32-char hex before `?`).
+5. Add to `.env`:
+   ```
+   NOTION_API_KEY=secret_xxx
+   NOTION_DATABASE_ID=xxx
+   ```
+
 ## Project Structure
 
 ```
 project_jam/
 ├── src/
 │   ├── config.py           # API key, prompts, Grok settings
-│   ├── llm_analysts.py     # brainstorm_ideas, critique_ideas
+│   ├── idea_exporter.py    # export_to_notion
+│   ├── llm_analysts.py    # brainstorm_ideas, critique_ideas, generate_keywords_for_ideas
 │   └── summary_generator.py # format_exec_summary, parse_trackable_elements, calculate_conviction
+├── app.py                  # Streamlit web app
 ├── main.py                 # Console entry point
 ├── requirements.txt
 ├── .env.example

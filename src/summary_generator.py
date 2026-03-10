@@ -107,6 +107,75 @@ def _extract_field(
     return ""
 
 
+def _extract_archetypes_from_brainstorm(brainstorm: str) -> dict[int, str]:
+    """Extract Idea N -> Archetype mapping from full brainstorm text. Robust to preamble, format variants."""
+    archetypes: dict[int, str] = {}
+
+    def _trim_brackets(s: str) -> str:
+        return re.sub(r"^\[(.*)\]$", r"\1", s.strip()).strip()
+
+    def _add(n: int, val: str) -> None:
+        v = _trim_brackets(val)
+        if v and len(v) > 1 and n not in archetypes:
+            archetypes[n] = v
+
+    # Pattern 1: **Idea N — Archetype** or **Idea N - Archetype** (em/en/hyphen dash)
+    for m in re.finditer(
+        r"\*\*Idea\s+(\d+)\s*[—\-–]\s*([^*\n]+?)\s*\*\*",
+        brainstorm,
+        re.IGNORECASE,
+    ):
+        _add(int(m.group(1)), m.group(2))
+
+    # Pattern 1b: **Idea N —** newline Archetype (archetype on next line)
+    for m in re.finditer(
+        r"\*\*Idea\s+(\d+)\s*[—\-–]\s*\*\*\s*\n\s*([^\n*\-]+?)(?=\n\s*[\-\*•]|\n\n|$)",
+        brainstorm,
+        re.IGNORECASE,
+    ):
+        _add(int(m.group(1)), m.group(2))
+
+    # Pattern 2: Idea N — Archetype or Idea N: Archetype (no bold)
+    for m in re.finditer(
+        r"(?:^|\n)\s*Idea\s+(\d+)\s*[—\-–:]\s*([^\n*]+?)(?:\*\*|\n|$)",
+        brainstorm,
+        re.IGNORECASE,
+    ):
+        _add(int(m.group(1)), m.group(2))
+
+    # Pattern 3: 1. Archetype or 1) Archetype (numbered format, first line only)
+    for m in re.finditer(
+        r"(?:^|\n)\s*(\d+)[\.\)]\s*([^\n]+?)(?=\n\s*[\-\*•]|\n\s*\d+[\.\)]|$)",
+        brainstorm,
+        re.IGNORECASE,
+    ):
+        val = m.group(2).strip()
+        if val and len(val) > 2:
+            _add(int(m.group(1)), val)
+
+    # Pattern 4: Idea N. Archetype (period after number)
+    for m in re.finditer(
+        r"(?:^|\n)\s*Idea\s+(\d+)\s*\.\s*([^\n*]+?)(?=\n\s*[\-\*•]|\n\n|$)",
+        brainstorm,
+        re.IGNORECASE,
+    ):
+        _add(int(m.group(1)), m.group(2))
+
+    return archetypes
+
+
+def _extract_idea_header(block: str) -> str:
+    """Extract [Archetype] from block start. Block starts with 'Archetype**' after split on '**Idea N — '."""
+    m = re.match(r"^([^*\n]+)\*\*", block.strip())
+    if m:
+        header = m.group(1).strip()
+        # Trim optional surrounding brackets [ ]
+        header = re.sub(r"^\[(.*)\]$", r"\1", header).strip()
+        if header:
+            return header
+    return ""
+
+
 def _extract_idea_fallback(block: str) -> str:
     """When 'Idea:' label is missing, capture content before Actionable Opportunity."""
     # Match content from start until Actionable Opportunity, Underwritten Catalyst, or Supporting Arguments
@@ -199,6 +268,7 @@ def _extract_critic_fields(block: str) -> dict[str, str]:
 
 def format_exec_summary(brainstorm: str, critic: str) -> str:
     """Produce Markdown table summary with Pros and Cons paired for easy evaluation."""
+    archetypes = _extract_archetypes_from_brainstorm(brainstorm)
     brainstorm_blocks = _parse_idea_blocks(brainstorm)
     critic_blocks = _parse_idea_blocks(critic)
     # Fallback: if critic has no parsed blocks but has content, treat whole critic as one block
@@ -216,9 +286,16 @@ def format_exec_summary(brainstorm: str, critic: str) -> str:
         )
 
         # Pros cell: Pro Idea N: for parser compatibility, then structured fields
-        # Use first line of idea in case extraction captured multiple lines
+        # Extract [Archetype] from full brainstorm or block fallback; use Idea first line if still empty
+        idea_header = (
+            archetypes.get(n)
+            or _extract_idea_header(b_block.get("raw", ""))
+            or (b_fields.get("idea") or "").split("\n")[0].strip()[:60]
+        )
         idea_val = (b_fields.get("idea") or "").split("\n")[0].strip()
         pro_parts: list[str] = []
+        if idea_header:
+            pro_parts.append(f"**Header:** {idea_header}")
         if idea_val:
             pro_parts.append(f"**Idea:** {idea_val}")
         if b_fields.get("action"):
@@ -324,9 +401,28 @@ def parse_trackable_elements(summary: str) -> list[dict[str, Any]]:
         )
         ticker = ticker_m.group(1).upper() if ticker_m else ""
 
+        # Extract idea name: prefer **Header:** (archetype), fallback to **Idea:**
+        idea_name = ""
+        header_m = re.search(
+            r"(?:\*\*)?Header(?:\*\*)?\s*:\s*([^\n*]+?)(?=\n\s*(?:\*\*)?(?:Idea|Action|Catalyst|Args)\s*:|\s*\*\*|\s*$)",
+            block,
+            re.DOTALL | re.IGNORECASE,
+        )
+        if header_m:
+            idea_name = re.sub(r"^\s*\*+\s*|\s*\*+\s*$", "", header_m.group(1).strip())
+        if not idea_name:
+            idea_m = re.search(
+                r"(?:\*\*)?Idea(?:\*\*)?\s*:\s*([^\n*]+?)(?=\n\s*(?:\*\*)?(?:Action|Catalyst|Args)\s*:|\s*\*\*|\s*$)",
+                block,
+                re.DOTALL | re.IGNORECASE,
+            )
+            if idea_m:
+                idea_name = re.sub(r"^\s*\*+\s*|\s*\*+\s*$", "", idea_m.group(1).strip())
+
         elements.append(
             {
                 "idea_id": idea_id,
+                "idea_name": idea_name or f"Idea {idea_id}",
                 "catalyst": catalyst or None,
                 "timeline": timeline or None,
                 "metric": metric or None,
