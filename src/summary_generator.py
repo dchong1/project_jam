@@ -107,12 +107,37 @@ def _extract_field(
     return ""
 
 
+def _extract_idea_fallback(block: str) -> str:
+    """When 'Idea:' label is missing, capture content before Actionable Opportunity."""
+    # Match content from start until Actionable Opportunity, Underwritten Catalyst, or Supporting Arguments
+    m = re.search(
+        r"^(.+?)(?=\n\s*[\-\*•]?\s*\*{0,2}\s*(?:Actionable Opportunity|Underwritten Catalyst"
+        r"/Event|Underwritten Catalyst|Supporting Arguments)\s*:)",
+        block,
+        re.DOTALL | re.IGNORECASE,
+    )
+    if m:
+        content = m.group(1).strip()
+        # Remove trailing header fragment from split (e.g. " Logical**" or " Archetype**")
+        content = re.sub(r"^\s*[^*\n]*\*\*\s*", "", content)
+        # Remove "Idea N — Archetype" or "Idea N:" if present
+        content = re.sub(r"^\*\*Idea\s+\d+\s*[—\-][^*]*\*\*\s*", "", content, flags=re.IGNORECASE)
+        content = re.sub(r"^Idea\s+\d+\s*[—\-:]\s*", "", content, flags=re.IGNORECASE)
+        content = re.sub(r"^\*+\s*", "", content)
+        if len(content) > 15:  # Avoid capturing trivial headers
+            return content.strip()
+    return ""
+
+
 def _extract_brainstorm_fields(block: str) -> dict[str, str]:
     """Extract Idea, Action, Catalyst, Args from a brainstorm block."""
+    idea_val = (
+        _extract_field(block, "Idea", ["Actionable Opportunity"])
+        or _extract_field(block, "idea", ["Actionable Opportunity"])
+        or _extract_idea_fallback(block)
+    )
     raw = {
-        "idea": _extract_field(
-            block, "Idea", ["Actionable Opportunity"]
-        ) or _extract_field(block, "idea", ["Actionable Opportunity"]),
+        "idea": idea_val,
         "action": _extract_field(
             block,
             "Actionable Opportunity",
