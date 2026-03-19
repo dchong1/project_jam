@@ -1,14 +1,30 @@
-# Investment Idea Generation Backend
+# Investment Ideas Generation Backend
 
-> Generate and critique actionable investment ideas using dual LLM analysts (Grok API).
+A personal side project exploring dual-LLM agents (with the Grok API).
+
+I built a modular Python backend and a simple Streamlit UI where two LLM "analysts" work together: one generates ideas, the other critiques them. The goal was to experiment with structured prompting, agent workflows, and turning outputs into something usable (executive summary + trackable elements + Notion export).
 
 ![Python](https://img.shields.io/badge/python-3.10+-blue.svg)
 
-A modular Python backend that uses the Grok API (OpenAI-compatible) to generate and critique investment ideas. Two analyst LLMs work in sequence: a brainstormer produces 3-5 actionable ideas with catalysts and supporting arguments, and a critic provides counterarguments and constructive suggestions.
+
+**Status**: Working MVP — actively tinkering and adding features (March 2026).
+
+[![Python](https://img.shields.io/badge/Python-3.12-blue)](https://www.python.org) 
+[![Grok/xAI](https://img.shields.io/badge/Grok_API-xAI-orange)](https://x.ai)
+[![Streamlit](https://img.shields.io/badge/Streamlit-1.32-red)](https://streamlit.io)
+[![Notion](https://img.shields.io/badge/Notion_API-green)](https://developers.notion.com)
+
+## What it does
+- Enter a theme + choose an analyst style (growth / value / distressed / etc.)
+- Brainstormer generates 3–5 ideas with catalysts and arguments
+- Critic reviews each one and suggests improvements
+- Produces a clean executive summary table
+- Calculates a simple conviction score based on weights you set
+- One-click export to a Notion database (optional but working)
 
 ## Thought Process
 
-The system follows a hedge-fund analyst workflow: **generate → stress-test → synthesize → track**.
+The system follows an analyst workflow: **generate → stress-test → synthesize → track**.
 
 ```mermaid
 flowchart TB
@@ -205,6 +221,22 @@ project_jam/
 └── README.md
 ```
 
+## Screenshots
+[to add 3–4 simple screenshots here — Streamlit UI, sample output, Notion export.]
+
+--
+
+
 ## Test Theme
 
 Example: `AI in healthcare` - generates ideas across sectors with measurable catalysts and actionable opportunities.
+
+## Future explorations (learning roadmap)
+- Persistent idea history (local JSON)
+- Auto-pull price/data for conviction scoring
+- PDF/Markdown export
+- Scheduled runs
+
+I’m still learning so this is my playground to practice. Feedback or suggestions always welcome!
+
+
