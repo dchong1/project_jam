@@ -2,7 +2,7 @@
 
 A personal side project exploring dual-LLM agents (with the Grok API).
 
-I built a modular Python backend and a simple Streamlit UI where two LLM "analysts" work together: one generates ideas, the other critiques them. The goal was to experiment with structured prompting, agent workflows, and turning outputs into something usable (executive summary + trackable elements + Notion export).
+I built a modular Python backend and a Streamlit UI (Matrix-style terminal) where two LLM "analysts" work together: one generates ideas, the other critiques them. **Optional RAG**: before brainstorming, the app can pull recent web snippets via **[Exa](https://exa.ai)** and pass them into the combined Grok prompt so ideas are grounded in fresher context. The goal was to experiment with structured prompting, retrieval, agent workflows, and turning outputs into something usable (executive summary + trackable elements + Notion export).
 
 ![Python](https://img.shields.io/badge/python-3.10+-blue.svg)
 
@@ -15,10 +15,11 @@ I built a modular Python backend and a simple Streamlit UI where two LLM "analys
 [![Notion](https://img.shields.io/badge/Notion_API-green)](https://developers.notion.com)
 
 ## What it does
-- Enter a theme + choose an analyst style (growth / value / distressed / etc.)
+- Enter a theme + choose an analyst archetype (logical, visionary, conservative, etc. — see the app)
+- **Optional RAG:** enable **Exa context** with `EXA_API_KEY` to fetch recent web snippets and inject them before the brainstorm
 - Brainstormer generates 3–5 ideas with catalysts and arguments
 - Critic reviews each one and suggests improvements
-- Produces a clean executive summary table
+- Produces a clean executive summary (formatted as a terminal session log in Streamlit)
 - Calculates a simple conviction score based on weights you set
 - One-click export to a Notion database (optional but working)
 
@@ -31,6 +32,11 @@ flowchart TB
     subgraph Input
         Theme[Investment Theme]
         Archetype[Analyst Archetype]
+    end
+
+    subgraph Retrieval["0. Optional RAG"]
+        Exa[Exa search]
+        Snip[Web snippets markdown]
     end
 
     subgraph Generation["1. Generate"]
@@ -58,6 +64,9 @@ flowchart TB
         Conviction[Conviction Score]
     end
 
+    Theme --> Exa
+    Exa --> Snip
+    Snip --> Brainstorm
     Theme --> Brainstorm
     Archetype --> Brainstorm
     Brainstorm --> B1 & B2 & B3
@@ -71,6 +80,7 @@ flowchart TB
 
 | Phase | What Happens |
 |-------|--------------|
+| **0. RAG (optional)** | If `EXA_API_KEY` is set and Exa context is on, recent web results are summarized into a markdown block prepended to the brainstorm prompt. |
 | **1. Generate** | Brainstormer produces 3–5 ideas. Each idea: catalyst, actionable opportunity, supporting arguments. |
 | **2. Stress-Test** | Critic reviews each idea for counterarguments, tweaks, and revised actions. |
 | **3. Synthesize** | Pro/con views aligned by idea in an executive summary table. |
@@ -83,25 +93,29 @@ flowchart TB
 ```mermaid
 flowchart LR
     A[Enter Theme] --> B[Select Archetype]
-    B --> C[Generate Ideas]
+    B --> B2[Exa context on/off]
+    B2 --> C[Generate ideas]
     C --> D[View Summary]
     D --> E[Set Weights]
     E --> F[Conviction Score]
-    F --> G[Export to Notion]
+    F --> G[Push to Notion]
 ```
 
 ## End-to-End Pipeline
 
 ```mermaid
 flowchart LR
-    Theme[Investment Theme] --> Brainstorm[Brainstorm LLM]
+    Theme[Investment Theme] --> Exa[Exa optional]
+    Exa --> Brainstorm[Brainstorm LLM]
+    Theme --> Brainstorm
     Brainstorm --> Critic[Critic LLM]
     Critic --> Summary[Executive Summary]
     Summary --> Trackables[Trackable Elements]
     Summary --> Conviction[Conviction Score]
 ```
 
-- **Brainstorm LLM** - Generates 3-5 ideas with catalysts, actionable opportunities, and supporting arguments
+- **Exa (optional)** - Retrieves recent snippets for the theme; see `src/context_retrieval.py`
+- **Brainstorm LLM** - Generates 3-5 ideas with catalysts, actionable opportunities, and supporting arguments (can include RAG context in one combined Grok call in Streamlit)
 - **Critic LLM** - Reviews each idea with counterarguments and constructive suggestions
 - **Executive Summary** - Aligns pro/con views by idea
 - **Trackable Elements** - Extracts catalyst, timeline, metric, and ticker for each idea
@@ -118,20 +132,23 @@ flowchart TB
 
     subgraph Core["Core Logic"]
         llm[llm_analysts.py]
+        rag[context_retrieval.py]
         summary[summary_generator.py]
         exporter[idea_exporter.py]
     end
 
     subgraph Config["config.py"]
-        config[API key, prompts, Grok settings]
+        config[API keys, prompts, Grok + Exa settings]
     end
 
     main --> llm
     main --> summary
+    app --> rag
     app --> llm
     app --> summary
     app --> exporter
     llm --> config
+    rag --> config
     summary --> config
 ```
 
@@ -144,6 +161,8 @@ flowchart TB
    ```
 
    Edit `.env` and set `GROK_API_KEY` to your xAI API key from [xAI Console](https://console.x.ai/).
+
+   **Optional — retrieval (RAG):** set `EXA_API_KEY` from [Exa](https://exa.ai) so the Streamlit app and CLI can pull recent web snippets before brainstorming. If the key is missing, the app still runs; leave Exa context off or ignore the warning. Tune defaults in code or via env: `EXA_NUM_RESULTS`, `EXA_TEXT_MAX_CHARACTERS`, `EXA_RECENCY_DAYS` (see `src/config.py`).
 
 2. Create a virtual environment and install dependencies:
 
@@ -164,6 +183,7 @@ python main.py
 ```
 
 - Enter an investment theme (or press Enter for the default: "AI in healthcare").
+- Optionally use **Exa web context** when prompted (requires `EXA_API_KEY`), or pass `--no-web-context` in non-interactive mode.
 - The app will generate ideas, run the critic, and print the executive summary and trackable elements.
 - Enter weights (1-10) for each idea, comma-separated, to compute a conviction score.
 
@@ -172,12 +192,12 @@ python main.py
 streamlit run app.py
 ```
 
-- Enter theme, select analyst archetype, click **Generate Ideas**.
-- View executive summary, trackables, set conviction weights, and optionally **Export to Notion**.
+- Enter theme, select archetype, toggle **Exa context** if you use Exa, then **Generate investment ideas**.
+- View the terminal session log (executive summary + trackables + critic), set conviction weights, and **Push session to Notion** when configured.
 
 ## Export to Notion
 
-After generating ideas in the Streamlit app, use **Export to Notion** to add them to your idea database.
+After generating ideas in the Streamlit app, use **Push session to Notion** to add them to your idea database.
 
 1. Create a [Notion integration](https://www.notion.so/my-integrations) and copy the API key.
 2. Create a database in Notion with these properties:
@@ -210,10 +230,11 @@ After generating ideas in the Streamlit app, use **Export to Notion** to add the
 ```
 project_jam/
 ├── src/
-│   ├── config.py           # API key, prompts, Grok settings
-│   ├── idea_exporter.py    # export_to_notion
-│   ├── llm_analysts.py    # brainstorm_ideas, critique_ideas, generate_keywords_for_ideas
-│   └── summary_generator.py # format_exec_summary, parse_trackable_elements, calculate_conviction
+│   ├── config.py              # API keys, prompts, Grok + optional Exa settings
+│   ├── context_retrieval.py   # fetch_web_context_markdown (Exa RAG)
+│   ├── idea_exporter.py       # export_to_notion
+│   ├── llm_analysts.py        # brainstorm / critic / combined Grok calls
+│   └── summary_generator.py   # format_exec_summary, parse_trackable_elements, calculate_conviction
 ├── app.py                  # Streamlit web app
 ├── main.py                 # Console entry point
 ├── requirements.txt
@@ -232,7 +253,8 @@ project_jam/
 Example: `AI in healthcare` - generates ideas across sectors with measurable catalysts and actionable opportunities.
 
 ## Future explorations (learning roadmap)
-- Persistent idea history (local JSON)
+- Richer RAG (chunking, citations, domain filters)
+- Persistent idea history beyond in-session query list (local JSON)
 - Auto-pull price/data for conviction scoring
 - PDF/Markdown export
 - Scheduled runs
