@@ -15,6 +15,7 @@ from .config import (
     critic_prompt_template,
     resolve_archetype,
 )
+from .context_retrieval import fetch_web_context_markdown
 
 # Extended timeout for reasoning models (xAI recommendation)
 REASONING_TIMEOUT = 3600.0
@@ -38,15 +39,35 @@ def _build_archetype_instruction(archetype: str | None) -> str:
     return f"Adopt the thinking style of a {data['display_name']} analyst: {data['description']} "
 
 
+def _resolve_brainstorm_retrieval(
+    theme: str,
+    use_web_context: bool,
+    retrieval_context: str | None,
+) -> str:
+    if not use_web_context:
+        return ""
+    if retrieval_context is not None:
+        return retrieval_context
+    return fetch_web_context_markdown(theme)
+
+
 def brainstorm_ideas(
     theme: str,
     archetype: str | None = None,
     stream: bool = False,
+    use_web_context: bool = True,
+    retrieval_context: str | None = None,
 ) -> str | Generator[str, None, None]:
-    """Generate 2-4 investment ideas for the given theme using the brainstormer LLM."""
+    """Generate 2-4 investment ideas for the given theme using the brainstormer LLM.
+
+    If ``retrieval_context`` is not None and ``use_web_context`` is True, that string is
+    used as the web context block and Exa is not called again.
+    """
     archetype_instruction = _build_archetype_instruction(archetype)
+    rc = _resolve_brainstorm_retrieval(theme, use_web_context, retrieval_context)
     prompt = brainstorm_prompt_template.format(
         theme=theme,
+        retrieval_context=rc,
         archetype_instruction=archetype_instruction,
     )
     try:
@@ -154,11 +175,18 @@ def generate_ideas_combined(
     theme: str,
     archetype: str | None = None,
     stream: bool = False,
+    use_web_context: bool = True,
+    retrieval_context: str | None = None,
 ) -> tuple[str, str] | Generator[str, None, None]:
-    """Generate brainstorm and critique in a single API call. Returns (brainstorm, critic) or a streaming generator."""
+    """Generate brainstorm and critique in a single API call. Returns (brainstorm, critic) or a streaming generator.
+
+    If ``retrieval_context`` is not None and ``use_web_context`` is True, Exa is not called again.
+    """
     archetype_instruction = _build_archetype_instruction(archetype)
+    rc = _resolve_brainstorm_retrieval(theme, use_web_context, retrieval_context)
     prompt = combined_prompt_template.format(
         theme=theme,
+        retrieval_context=rc,
         archetype_instruction=archetype_instruction,
     )
     try:

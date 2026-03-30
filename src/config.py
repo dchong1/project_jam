@@ -21,6 +21,12 @@ if not GROK_API_KEY:
 NOTION_API_KEY = os.getenv("NOTION_API_KEY")
 NOTION_DATABASE_ID = os.getenv("NOTION_DATABASE_ID")
 
+# Optional: Exa search for Brainstormer web context (no raise if unset)
+EXA_API_KEY = os.getenv("EXA_API_KEY")
+EXA_NUM_RESULTS = int(os.getenv("EXA_NUM_RESULTS", "10"))
+EXA_TEXT_MAX_CHARACTERS = int(os.getenv("EXA_TEXT_MAX_CHARACTERS", "900"))
+EXA_RECENCY_DAYS = int(os.getenv("EXA_RECENCY_DAYS", "550"))
+
 ANALYST_ARCHETYPES = {
     "logical": {
         "display_name": "Logical",
@@ -98,6 +104,7 @@ For each idea, use this exact format:
 
 brainstorm_prompt_template = (
     'You are an investment analyst in a top-tier buyside firm, tasked with generating investment ideas for the firm, reporting to the Chief Investment Officer. Brainstorm specific, actionable opportunities for the theme: "{theme}".\n'
+    "{retrieval_context}"
     "{archetype_instruction}"
     + _BRAINSTORM_STRUCTURE
 )
@@ -112,6 +119,7 @@ combined_prompt_template = (
     'Act as an investment analyst. Perform BOTH tasks below in a single response.\n\n'
     'PART 1 - BRAINSTORM:\n'
     'Brainstorm specific, actionable opportunities for the theme: "{theme}".\n'
+    "{retrieval_context}"
     "{archetype_instruction}"
     + _BRAINSTORM_STRUCTURE
     + """
